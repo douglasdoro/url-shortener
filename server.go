@@ -13,10 +13,13 @@ import (
 var (
 	port    int
 	baseUrl string
-	stats   chan string
 )
 
 type Headers map[string]string
+
+type Redirect struct {
+	stats chan string
+}
 
 func init() {
 	port = 3000
@@ -26,13 +29,13 @@ func init() {
 }
 
 func main() {
-	stats = make(chan string)
+	stats := make(chan string)
 	defer close(stats)
 	go recordStatistics(stats)
 
 	http.HandleFunc("/api/tiny", UrlShortener)
 	http.HandleFunc("/api/stats/", ShowStats)
-	http.HandleFunc("/r/", Redirect)
+	http.Handle("/r/", &Redirect{stats: stats})
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
@@ -66,14 +69,14 @@ func UrlShortener(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func Redirect(w http.ResponseWriter, r *http.Request) {
+func (red *Redirect) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Split(r.URL.Path, "/")
 	id := path[len(path)-1]
 
 	if ulr := url.Find(id); ulr != nil {
 		http.Redirect(w, r, ulr.Destination, http.StatusMovedPermanently)
 
-		stats <- id
+		red.stats <- id
 	} else {
 		http.NotFound(w, r)
 	}
