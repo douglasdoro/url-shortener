@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -30,6 +31,7 @@ func main() {
 	go recordStatistics(stats)
 
 	http.HandleFunc("/api/tiny", UrlShortener)
+	http.HandleFunc("/api/stats/", ShowStats)
 	http.HandleFunc("/r/", Redirect)
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
@@ -55,9 +57,13 @@ func UrlShortener(w http.ResponseWriter, r *http.Request) {
 
 	shortUrl := fmt.Sprintf("%s/r/%s", baseUrl, url.Id)
 
-	respondWith(w, status, Headers{"Location": shortUrl})
+	respondWith(
+		w,
+		status,
+		Headers{
+			"Location": shortUrl,
+			"Link":     fmt.Sprintf("<%s/api/stats/%s>; rel=\"stats\"", baseUrl, url.Id)})
 
-	return
 }
 
 func Redirect(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +74,23 @@ func Redirect(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, ulr.Destination, http.StatusMovedPermanently)
 
 		stats <- id
+	} else {
+		http.NotFound(w, r)
+	}
+}
+
+func ShowStats(w http.ResponseWriter, r *http.Request) {
+	path := strings.Split(r.URL.Path, "/")
+	id := path[len(path)-1]
+
+	if url := url.Find(id); url != nil {
+		json, err := json.Marshal(url.Stats())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		respondWithJSON(w, string(json), Headers{"Content-Type": "application/json"})
 	} else {
 		http.NotFound(w, r)
 	}
@@ -84,6 +107,14 @@ func respondWith(w http.ResponseWriter, status int, headers Headers) {
 		w.Header().Set(k, v)
 	}
 	w.WriteHeader(status)
+}
+
+func respondWithJSON(w http.ResponseWriter, responseJSON string, headers Headers) {
+	for k, v := range headers {
+		w.Header().Set(k, v)
+	}
+
+	fmt.Fprintf(w, responseJSON)
 }
 
 func recordStatistics(ids <-chan string) {
