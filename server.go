@@ -12,6 +12,7 @@ import (
 var (
 	port    int
 	baseUrl string
+	stats   chan string
 )
 
 type Headers map[string]string
@@ -24,6 +25,10 @@ func init() {
 }
 
 func main() {
+	stats = make(chan string)
+	defer close(stats)
+	go recordStatistics(stats)
+
 	http.HandleFunc("/api/tiny", UrlShortener)
 	http.HandleFunc("/r/", Redirect)
 
@@ -57,10 +62,12 @@ func UrlShortener(w http.ResponseWriter, r *http.Request) {
 
 func Redirect(w http.ResponseWriter, r *http.Request) {
 	path := strings.Split(r.URL.Path, "/")
-	urlId := path[len(path)-1]
+	id := path[len(path)-1]
 
-	if url := url.Find(urlId); url != nil {
-		http.Redirect(w, r, url.Destination, http.StatusMovedPermanently)
+	if ulr := url.Find(id); ulr != nil {
+		http.Redirect(w, r, ulr.Destination, http.StatusMovedPermanently)
+
+		stats <- id
 	} else {
 		http.NotFound(w, r)
 	}
@@ -77,4 +84,11 @@ func respondWith(w http.ResponseWriter, status int, headers Headers) {
 		w.Header().Set(k, v)
 	}
 	w.WriteHeader(status)
+}
+
+func recordStatistics(ids <-chan string) {
+	for id := range ids {
+		url.RegisterClick(id)
+		fmt.Printf("Click recorded succeeds. ID: %s \n", id)
+	}
 }

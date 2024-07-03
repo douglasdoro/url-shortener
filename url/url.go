@@ -28,6 +28,7 @@ type Repository interface {
 	FindById(id string) *Url
 	FindByUrl(url string) *Url
 	Save(url Url) error
+	RegisterClick(id string)
 }
 
 func ConfigRepository(r Repository) {
@@ -72,4 +73,8 @@ func idGenerator() string {
 
 func Find(id string) *Url {
 	return repo.FindById(id)
+}
+
+func RegisterClick(id string) {
+	repo.RegisterClick(id)
 }
