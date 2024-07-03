@@ -70,23 +70,15 @@ func UrlShortener(w http.ResponseWriter, r *http.Request) {
 }
 
 func (red *Redirect) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.Split(r.URL.Path, "/")
-	id := path[len(path)-1]
+	findUrlAndExecute(w, r, func(url *url.Url) {
+		http.Redirect(w, r, url.Destination, http.StatusMovedPermanently)
 
-	if ulr := url.Find(id); ulr != nil {
-		http.Redirect(w, r, ulr.Destination, http.StatusMovedPermanently)
-
-		red.stats <- id
-	} else {
-		http.NotFound(w, r)
-	}
+		red.stats <- url.Id
+	})
 }
 
 func ShowStats(w http.ResponseWriter, r *http.Request) {
-	path := strings.Split(r.URL.Path, "/")
-	id := path[len(path)-1]
-
-	if url := url.Find(id); url != nil {
+	findUrlAndExecute(w, r, func(url *url.Url) {
 		json, err := json.Marshal(url.Stats())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -94,9 +86,7 @@ func ShowStats(w http.ResponseWriter, r *http.Request) {
 		}
 
 		respondWithJSON(w, string(json), Headers{"Content-Type": "application/json"})
-	} else {
-		http.NotFound(w, r)
-	}
+	})
 }
 
 func extractUrl(r *http.Request) string {
@@ -124,5 +114,16 @@ func recordStatistics(ids <-chan string) {
 	for id := range ids {
 		url.RegisterClick(id)
 		fmt.Printf("Click recorded succeeds. ID: %s \n", id)
+	}
+}
+
+func findUrlAndExecute(w http.ResponseWriter, r *http.Request, executor func(*url.Url)) {
+	path := strings.Split(r.URL.Path, "/")
+	id := path[len(path)-1]
+
+	if url := url.Find(id); url != nil {
+		executor(url)
+	} else {
+		http.NotFound(w, r)
 	}
 }
