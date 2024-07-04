@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,7 +12,8 @@ import (
 )
 
 var (
-	port    int
+	port    *int
+	logOn   *bool
 	baseUrl string
 )
 
@@ -22,8 +24,11 @@ type Redirect struct {
 }
 
 func init() {
-	port = 3000
-	baseUrl = fmt.Sprintf("http://localhost:%d", port)
+	port = flag.Int("p", 3000, "port")
+	logOn = flag.Bool("l", true, "on/off Log")
+	flag.Parse()
+
+	baseUrl = fmt.Sprintf("http://localhost:%d", *port)
 
 	url.ConfigRepository(url.NewRopositoryInMemory())
 }
@@ -37,8 +42,8 @@ func main() {
 	http.HandleFunc("/api/stats/", ShowStats)
 	http.Handle("/r/", &Redirect{stats: stats})
 
-	logger("Initialize the server on port %d", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+	logger("Initialize the server on port %d", *port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 }
 
 func UrlShortener(w http.ResponseWriter, r *http.Request) {
@@ -132,5 +137,7 @@ func findUrlAndExecute(w http.ResponseWriter, r *http.Request, executor func(*ur
 }
 
 func logger(format string, values ...interface{}) {
-	log.Printf(fmt.Sprintf("%s\n", format), values...)
+	if *logOn {
+		log.Printf(fmt.Sprintf("%s\n", format), values...)
+	}
 }
