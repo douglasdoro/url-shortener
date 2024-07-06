@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/douglasdoro/url-shortener/url"
+	"github.com/joho/godotenv"
 )
 
 var (
@@ -28,7 +30,12 @@ func init() {
 	logOn = flag.Bool("l", true, "on/off Log")
 	flag.Parse()
 
-	baseUrl = fmt.Sprintf("http://localhost:%d", *port)
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	baseUrl = fmt.Sprintf("http://%s:%d", os.Getenv("DOMAIN"), *port)
 
 	url.ConfigRepository(url.NewRopositoryInMemory())
 }
